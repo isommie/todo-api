@@ -3,40 +3,291 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>To-Do App</title>
+    <title>Todo App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f7f8fc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 20px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        li {
+            background: #f9f9f9;
+            margin: 8px 0;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 5px;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 5px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        input[type="text"] {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: calc(100% - 85px);
+            font-size: 16px;
+            flex: 1;
+        }
+
+        .input-area {
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        .completed {
+            text-decoration: line-through;
+            color: #999;
+            background-color: #e9ecef;
+        }
+
+        input[type="checkbox"] {
+            margin-right: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            font-size: 16px;
+            color: #777;
+        }
+
+        @media (max-width: 480px) {
+            .app-container {
+                padding: 15px;
+            }
+
+            button {
+                padding: 5px 8px;
+                font-size: 12px;
+            }
+
+            input[type="text"] {
+                font-size: 14px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>To-Do List</h1>
-    <ul id="todo-list"></ul>
-    <input type="text" id="todo-input" placeholder="Add a new to-do">
-    <button onclick="addTodo()">Add</button>
+    <div class="app-container">
+        <h1>Todo App</h1>
+        <div class="input-area">
+            <input type="text" id="todo-input" placeholder="Add a new to-do">
+            <button onclick="handleSubmit()">Add</button>
+        </div>
+        <div id="loading" class="loading" style="display: none;">Loading...</div>
+        <ul id="todo-list"></ul>
+    </div>
 
     <script>
         const apiBase = 'http://localhost:3000/api/todos';
+        let editingTodoId = null;
 
         async function fetchTodos() {
-            const res = await fetch(apiBase);
-            const todos = await res.json();
+            try {
+                showLoading(true);
+                const res = await fetch(apiBase);
+                const todos = await res.json();
+                renderTodos(todos);
+            } catch (error) {
+                alert('Failed to fetch todos. Please try again.');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderTodos(todos) {
             const todoList = document.getElementById('todo-list');
             todoList.innerHTML = '';
             todos.forEach(todo => {
                 const li = document.createElement('li');
-                li.textContent = todo.title + (todo.completed ? ' (Done)' : '');
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = todo.completed;
+                checkbox.onclick = () => toggleTodoCompletion(todo._id, checkbox.checked);
+
+                if (todo.completed) {
+                    li.classList.add('completed');
+                } else {
+                    li.classList.remove('completed');
+                }
+
+                const titleSpan = document.createElement('span');
+                titleSpan.style.flex = '1';
+                titleSpan.style.wordBreak = 'break-word';
+                titleSpan.textContent = todo.title;
+
+                const editButton = document.createElement('button');
+                editButton.textContent = 'Edit';
+                editButton.onclick = () => startEditing(todo);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.onclick = () => deleteTodo(todo._id);
+
+                li.appendChild(checkbox);
+                li.appendChild(titleSpan);
+                li.appendChild(editButton);
+                li.appendChild(deleteButton);
+
                 todoList.appendChild(li);
             });
         }
 
+        function showLoading(isLoading) {
+            document.getElementById('loading').style.display = isLoading ? 'block' : 'none';
+        }
+
         async function addTodo() {
             const input = document.getElementById('todo-input');
-            const title = input.value;
-            await fetch(apiBase, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title }),
-            });
-            input.value = '';
-            fetchTodos();
+            const title = input.value.trim();
+            if (!title) return;
+
+            try {
+                showLoading(true);
+                await fetch(apiBase, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, completed: false }),
+                });
+                fetchTodos();
+            } catch (error) {
+                alert('Failed to add todo. Please try again.');
+            } finally {
+                input.value = '';
+                showLoading(false);
+            }
         }
+        async function updateTodo() {
+    const input = document.getElementById('todo-input');
+    const title = input.value.trim();
+    if (!title || !editingTodoId) return;
+
+    // Find the todo being edited
+    const todoList = document.querySelectorAll('#todo-list li');
+    const currentTodo = Array.from(todoList).find(li =>
+        li.querySelector('button').onclick.toString().includes(editingTodoId)
+    );
+
+    const completed = currentTodo
+        ? currentTodo.querySelector('input[type="checkbox"]').checked
+        : false;
+
+    try {
+        showLoading(true);
+        await fetch(`${apiBase}/${editingTodoId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, completed }), // Include completed status
+        });
+        fetchTodos();
+    } catch (error) {
+        alert('Failed to update todo. Please try again.');
+    } finally {
+        input.value = '';
+        editingTodoId = null;
+        showLoading(false);
+    }
+}
+
+        async function deleteTodo(id) {
+            try {
+                showLoading(true);
+                await fetch(`${apiBase}/${id}`, { method: 'DELETE' });
+                fetchTodos();
+            } catch (error) {
+                alert('Failed to delete todo. Please try again.');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function toggleTodoCompletion(id, completed) {
+            try {
+                const response = await fetch(`${apiBase}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ completed }), // Sending only the 'completed' field
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to update todo completion status');
+                }
+
+                fetchTodos(); // Refresh the list after updating
+            } catch (error) {
+                console.error(error);
+                alert('An error occurred while updating the todo.');
+            }
+        }
+
+
+        function handleSubmit() {
+            if (editingTodoId) {
+                updateTodo();
+            } else {
+                addTodo();
+            }
+        }
+
+        function startEditing(todo) {
+            const input = document.getElementById('todo-input');
+            input.value = todo.title; // Pre-fill the input with the current title
+            editingTodoId = todo._id; // Set the current editing ID
+            input.focus(); // Focus the input for editing
+        }
+
+
+        document.getElementById('todo-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                handleSubmit();
+            }
+        });
 
         fetchTodos();
     </script>
