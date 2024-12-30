@@ -63,14 +63,14 @@ To run the Todo App, follow these steps:
 
 Here is a screenshot of the Todo App in action:
 
-* [Todo App Screenshot 1](todo-app.png)
+![Todo App Screenshot 1](todo-app.png)
 
 **Database Screenshot**
 ----------------------
 
 Here is a screenshot of the MongoDB database:
 
-* [MongoDB Database Screenshot](database.png)
+![MongoDB Database Screenshot](database.png)
 
 **API Endpoints**
 ----------------
